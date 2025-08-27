@@ -72,10 +72,28 @@
         .scrollable-table {
             overflow-x: auto;
         }
+        
+        .delete-btn-container {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .delete-btn {
+            background-color: transparent;
+            border: none;
+            color: #dc2626;
+            cursor: pointer;
+            padding: 0;
+        }
+        
+        .delete-btn:hover {
+            color: #b91c1c;
+        }
     </style>
 </head>
-<body class="light-mode flex items-center justify-center min-h-screen">
-    <div class="container rounded-2xl shadow-xl p-6 md:p-10 my-8 w-full max-w-4xl light-mode">
+<body class="dark-mode flex items-center justify-center min-h-screen">
+    <div class="container rounded-2xl shadow-xl p-6 md:p-10 my-8 w-full max-w-4xl dark-mode">
         
         <!-- Header -->
         <h1 class="text-3xl md:text-4xl font-extrabold text-center mb-2 text-indigo-600">Basketball Stats Tracker</h1>
@@ -200,13 +218,40 @@
             
             tabNames.forEach(name => {
                 const tabButton = document.createElement('button');
+                const isCurrentTab = name === currentTab;
                 tabButton.textContent = name;
-                tabButton.className = `tab-button font-semibold py-2 px-4 rounded-full shadow-sm transition-colors ${name === currentTab ? 'active' : ''}`;
+                tabButton.className = `tab-button font-semibold py-2 px-4 rounded-full shadow-sm transition-colors ${isCurrentTab ? 'active' : ''}`;
                 tabButton.onclick = () => {
                     currentTab = name;
                     renderUI();
                 };
-                tabsContainer.appendChild(tabButton);
+                
+                // Add delete button if there is more than one player
+                if (tabNames.length > 1) {
+                    const deleteBtn = document.createElement('button');
+                    deleteBtn.innerHTML = `
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
+                            <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd" />
+                        </svg>
+                    `;
+                    deleteBtn.className = "delete-btn ml-1";
+                    deleteBtn.onclick = (e) => {
+                        e.stopPropagation(); // Prevent tab change on button click
+                        showModal(`Are you sure you want to delete player '${name}'? This action cannot be undone.`, () => {
+                            delete data[name];
+                            saveData();
+                            renderUI();
+                        }, true);
+                    };
+                    const container = document.createElement('div');
+                    container.className = `flex items-center gap-1 ${isCurrentTab ? 'text-white' : 'text-gray-700 dark:text-gray-200'}`;
+                    container.appendChild(tabButton);
+                    container.appendChild(deleteBtn);
+                    tabsContainer.appendChild(container);
+
+                } else {
+                    tabsContainer.appendChild(tabButton);
+                }
             });
         }
 
@@ -750,6 +795,13 @@
             // Start with a default player if no data exists
             data['Player 1'] = { games: [], averages: {}, advanced: {} };
             currentTab = 'Player 1';
+        }
+
+        // Check for dark mode preference and apply on load
+        if (localStorage.getItem('dark-mode') === 'true') {
+            isDarkMode = true;
+        } else {
+            isDarkMode = false;
         }
         
         applyTheme();
