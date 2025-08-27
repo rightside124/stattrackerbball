@@ -1,0 +1,759 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Basketball Stats Tracker</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        /* General body styling for both light and dark modes */
+        body {
+            font-family: 'Inter', sans-serif;
+            transition: background-color 0.3s, color 0.3s;
+        }
+
+        /* Light mode-specific styles */
+        body.light-mode {
+            background-color: #f3f4f6;
+            color: #1f2937;
+        }
+
+        /* Dark mode-specific styles */
+        body.dark-mode {
+            background-color: #111827;
+            color: #e5e7eb;
+        }
+
+        /* Light mode container styling */
+        .container.light-mode {
+            background-color: #ffffff;
+            color: #1f2937;
+        }
+
+        /* Dark mode container styling */
+        .container.dark-mode {
+            background-color: #1f2937;
+            color: #e5e7eb;
+        }
+
+        /* Active tab button styling for both modes */
+        .tab-button.active {
+            background-color: #4f46e5;
+            color: white;
+        }
+        
+        /* Tab buttons for light mode */
+        body.light-mode .tab-button:not(.active) {
+            background-color: #e5e7eb;
+            color: #4b5563;
+        }
+        
+        /* Tab buttons for dark mode */
+        body.dark-mode .tab-button:not(.active) {
+            background-color: #374151;
+            color: #d1d5db;
+        }
+
+        .stat-input {
+            width: 100%;
+            padding: 0.5rem;
+            border-radius: 0.5rem;
+            border: 1px solid #d1d5db;
+            transition: all 0.2s;
+        }
+        .stat-input:focus {
+            outline: none;
+            border-color: #4f46e5;
+            box-shadow: 0 0 0 2px rgba(79, 70, 229, 0.25);
+        }
+        .scrollable-table {
+            overflow-x: auto;
+        }
+    </style>
+</head>
+<body class="light-mode flex items-center justify-center min-h-screen">
+    <div class="container rounded-2xl shadow-xl p-6 md:p-10 my-8 w-full max-w-4xl light-mode">
+        
+        <!-- Header -->
+        <h1 class="text-3xl md:text-4xl font-extrabold text-center mb-2 text-indigo-600">Basketball Stats Tracker</h1>
+        <p class="text-center text-gray-500 mb-6">Track your game, game-by-game.</p>
+
+        <!-- Dark mode toggle -->
+        <div class="flex justify-end mb-4">
+            <button id="dark-mode-toggle" class="bg-gray-200 text-gray-700 font-semibold py-2 px-4 rounded-full shadow hover:bg-gray-300 transition-colors dark:bg-gray-700 dark:text-gray-200 dark:hover:bg-gray-600">
+                Toggle Dark Mode
+            </button>
+        </div>
+
+        <!-- Tab Controls -->
+        <div class="flex flex-wrap items-center justify-center gap-2 mb-6">
+            <div id="tabs" class="flex flex-wrap gap-2">
+                <!-- Tab buttons will be inserted here dynamically -->
+            </div>
+            <button id="add-tab-btn" class="bg-indigo-500 text-white font-semibold py-2 px-4 rounded-full shadow hover:bg-indigo-600 transition-colors">
+                + Add Player
+            </button>
+            <div class="flex gap-2 ml-auto">
+                <button id="export-btn" class="bg-gray-200 text-gray-700 font-semibold py-2 px-4 rounded-full shadow hover:bg-gray-300 transition-colors dark:bg-gray-700 dark:text-gray-200 dark:hover:bg-gray-600">
+                    Export JSON
+                </button>
+                <button id="import-btn" class="bg-gray-200 text-gray-700 font-semibold py-2 px-4 rounded-full shadow hover:bg-gray-300 transition-colors dark:bg-gray-700 dark:text-gray-200 dark:hover:bg-gray-600">
+                    Import JSON
+                </button>
+                <input type="file" id="import-file" class="hidden" accept=".json">
+            </div>
+        </div>
+
+        <!-- Tab Content Area -->
+        <div id="tab-content" class="w-full">
+            <!-- Content for active tab will be injected here -->
+        </div>
+        
+    </div>
+
+    <!-- Hidden element for export -->
+    <a id="download-link" class="hidden"></a>
+
+    <!-- Custom Modal -->
+    <div id="custom-modal" class="fixed inset-0 bg-gray-900 bg-opacity-50 flex items-center justify-center z-50 p-4 hidden">
+        <div class="bg-white rounded-lg p-6 shadow-xl w-full max-w-sm dark:bg-gray-800 dark:text-gray-100">
+            <p id="modal-message" class="text-lg text-center mb-4"></p>
+            <div class="flex justify-center gap-4">
+                <button id="modal-ok-btn" class="px-4 py-2 bg-indigo-500 text-white rounded-md hover:bg-indigo-600 transition-colors">OK</button>
+                <button id="modal-cancel-btn" class="px-4 py-2 bg-gray-300 text-gray-800 rounded-md hover:bg-gray-400 transition-colors hidden">Cancel</button>
+            </div>
+        </div>
+    </div>
+
+
+    <script>
+        // Data storage object. Keys are player names (tabs), values are objects containing game stats and calculated data.
+        let data = JSON.parse(localStorage.getItem('basketball_stats')) || {};
+        let currentTab = Object.keys(data)[0] || null;
+
+        // Dark mode state
+        let isDarkMode = localStorage.getItem('dark-mode') === 'true';
+
+        /**
+         * Toggles between light and dark mode.
+         */
+        function toggleDarkMode() {
+            isDarkMode = !isDarkMode;
+            localStorage.setItem('dark-mode', isDarkMode);
+            applyTheme();
+        }
+
+        /**
+         * Applies the current theme based on the isDarkMode state.
+         */
+        function applyTheme() {
+            const body = document.body;
+            const container = document.querySelector('.container');
+            if (isDarkMode) {
+                body.classList.add('dark-mode');
+                body.classList.remove('light-mode');
+                container.classList.add('dark-mode');
+                container.classList.remove('light-mode');
+            } else {
+                body.classList.add('light-mode');
+                body.classList.remove('dark-mode');
+                container.classList.add('light-mode');
+                container.classList.remove('dark-mode');
+            }
+            // Re-render to apply theme to dynamic elements
+            renderUI();
+        }
+
+        /**
+         * Renders the entire UI based on the current data state.
+         */
+        function renderUI() {
+            renderTabs();
+            renderContent();
+        }
+
+        /**
+         * Renders the tab buttons.
+         */
+        function renderTabs() {
+            const tabsContainer = document.getElementById('tabs');
+            tabsContainer.innerHTML = ''; // Clear existing tabs
+            const tabNames = Object.keys(data);
+
+            if (tabNames.length === 0) {
+                // If no players exist, set currentTab to null and prompt to add one
+                currentTab = null;
+                const prompt = document.createElement('span');
+                prompt.textContent = "Click '+ Add Player' to get started!";
+                prompt.className = "text-gray-500 text-sm italic";
+                tabsContainer.appendChild(prompt);
+                return;
+            }
+
+            // Set the active tab if it's not already set
+            if (!currentTab || !data[currentTab]) {
+                currentTab = tabNames[0];
+            }
+            
+            tabNames.forEach(name => {
+                const tabButton = document.createElement('button');
+                tabButton.textContent = name;
+                tabButton.className = `tab-button font-semibold py-2 px-4 rounded-full shadow-sm transition-colors ${name === currentTab ? 'active' : ''}`;
+                tabButton.onclick = () => {
+                    currentTab = name;
+                    renderUI();
+                };
+                tabsContainer.appendChild(tabButton);
+            });
+        }
+
+        /**
+         * Renders the content for the currently active tab.
+         */
+        function renderContent() {
+            const contentContainer = document.getElementById('tab-content');
+            if (!currentTab) {
+                contentContainer.innerHTML = '';
+                return;
+            }
+
+            const player = data[currentTab];
+            const hasGames = player && player.games.length > 0;
+            const avgStats = hasGames ? player.averages : {};
+            const advStats = hasGames ? player.advanced : {};
+
+            contentContainer.innerHTML = `
+                <!-- Player Name -->
+                <h2 class="text-2xl md:text-3xl font-bold text-center mb-4 text-gray-800 dark:text-gray-200">${currentTab}</h2>
+
+                <!-- Input Form -->
+                <div class="bg-gray-50 p-6 rounded-xl shadow-md mb-6 dark:bg-gray-800">
+                    <h3 class="text-xl font-bold mb-4 text-gray-700 dark:text-gray-300">Add New Game Stats</h3>
+                    <form id="stats-form" class="grid grid-cols-2 md:grid-cols-4 gap-4">
+                        <div class="col-span-2 md:col-span-4">
+                            <label class="block text-gray-600 font-medium mb-1 dark:text-gray-400">Date</label>
+                            <input type="date" id="date" value="${new Date().toISOString().slice(0, 10)}" class="stat-input bg-white dark:bg-gray-900 dark:border-gray-700 dark:text-gray-100" required>
+                        </div>
+                        <div>
+                            <label class="block text-gray-600 font-medium mb-1 dark:text-gray-400">Minutes</label>
+                            <input type="number" id="minutes" value="0" class="stat-input bg-white dark:bg-gray-900 dark:border-gray-700 dark:text-gray-100" min="0" required>
+                        </div>
+                        <div>
+                            <label class="block text-gray-600 font-medium mb-1 dark:text-gray-400">Points</label>
+                            <input type="number" id="pts" value="0" class="stat-input bg-white dark:bg-gray-900 dark:border-gray-700 dark:text-gray-100" min="0" required>
+                        </div>
+                        <div>
+                            <label class="block text-gray-600 font-medium mb-1 dark:text-gray-400">FG (Made/Att)</label>
+                            <input type="text" id="fg" value="0/0" class="stat-input bg-white dark:bg-gray-900 dark:border-gray-700 dark:text-gray-100" required>
+                        </div>
+                        <div>
+                            <label class="block text-gray-600 font-medium mb-1 dark:text-gray-400">3FG (Made/Att)</label>
+                            <input type="text" id="fg3" value="0/0" class="stat-input bg-white dark:bg-gray-900 dark:border-gray-700 dark:text-gray-100" required>
+                        </div>
+                        <div>
+                            <label class="block text-gray-600 font-medium mb-1 dark:text-gray-400">FT (Made/Att)</label>
+                            <input type="text" id="ft" value="0/0" class="stat-input bg-white dark:bg-gray-900 dark:border-gray-700 dark:text-gray-100" required>
+                        </div>
+                        <div>
+                            <label class="block text-gray-600 font-medium mb-1 dark:text-gray-400">Rebounds (Off/Def)</label>
+                            <input type="text" id="rebounds" value="0/0" class="stat-input bg-white dark:bg-gray-900 dark:border-gray-700 dark:text-gray-100" required>
+                        </div>
+                        <div>
+                            <label class="block text-gray-600 font-medium mb-1 dark:text-gray-400">Assists</label>
+                            <input type="number" id="ast" value="0" class="stat-input bg-white dark:bg-gray-900 dark:border-gray-700 dark:text-gray-100" min="0" required>
+                        </div>
+                        <div>
+                            <label class="block text-gray-600 font-medium mb-1 dark:text-gray-400">Steals</label>
+                            <input type="number" id="stls" value="0" class="stat-input bg-white dark:bg-gray-900 dark:border-gray-700 dark:text-gray-100" min="0" required>
+                        </div>
+                        <div>
+                            <label class="block text-gray-600 font-medium mb-1 dark:text-gray-400">Blocks</label>
+                            <input type="number" id="blocks" value="0" class="stat-input bg-white dark:bg-gray-900 dark:border-gray-700 dark:text-gray-100" min="0" required>
+                        </div>
+                        <div>
+                            <label class="block text-gray-600 font-medium mb-1 dark:text-gray-400">Turnovers</label>
+                            <input type="number" id="tov" value="0" class="stat-input bg-white dark:bg-gray-900 dark:border-gray-700 dark:text-gray-100" min="0" required>
+                        </div>
+                        <div>
+                            <label class="block text-gray-600 font-medium mb-1 dark:text-gray-400">Personal Fouls</label>
+                            <input type="number" id="pf" value="0" class="stat-input bg-white dark:bg-gray-900 dark:border-gray-700 dark:text-gray-100" min="0" required>
+                        </div>
+                        <button type="submit" class="col-span-2 md:col-span-4 bg-indigo-500 text-white font-bold py-2 px-4 rounded-xl shadow hover:bg-indigo-600 transition-colors mt-4">Add Game</button>
+                    </form>
+                </div>
+
+                <!-- Averages & Advanced Stats -->
+                ${hasGames ? `
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+                    <div class="bg-indigo-50 p-6 rounded-xl shadow-md dark:bg-gray-800">
+                        <h3 class="text-xl font-bold mb-4 text-indigo-700 dark:text-indigo-400">Per Game Averages</h3>
+                        <div class="grid grid-cols-2 gap-2 text-sm text-gray-700 dark:text-gray-300">
+                            <span>Points: <span class="font-semibold">${avgStats.pts.toFixed(1)}</span></span>
+                            <span>Rebounds: <span class="font-semibold">${(avgStats.orb + avgStats.drb).toFixed(1)}</span></span>
+                            <span>Assists: <span class="font-semibold">${avgStats.ast.toFixed(1)}</span></span>
+                            <span>Steals: <span class="font-semibold">${avgStats.stls.toFixed(1)}</span></span>
+                            <span>Blocks: <span class="font-semibold">${avgStats.blocks.toFixed(1)}</span></span>
+                            <span>Minutes: <span class="font-semibold">${avgStats.minutes.toFixed(1)}</span></span>
+                            <span>FG%: <span class="font-semibold">${(avgStats.fgp * 100).toFixed(1)}%</span></span>
+                            <span>3FG%: <span class="font-semibold">${(avgStats.fg3p * 100).toFixed(1)}%</span></span>
+                            <span>FT%: <span class="font-semibold">${(avgStats.ftp * 100).toFixed(1)}%</span></span>
+                        </div>
+                    </div>
+
+                    <div class="bg-purple-50 p-6 rounded-xl shadow-md dark:bg-gray-800">
+                        <h3 class="text-xl font-bold mb-4 text-purple-700 dark:text-purple-400">Advanced Stats</h3>
+                        <div class="grid grid-cols-2 gap-2 text-sm text-gray-700 dark:text-gray-300">
+                            <span>Game Score (GMSC): <span class="font-semibold">${advStats.gmsc.toFixed(2)}</span></span>
+                            <span>True Shooting % (TS%): <span class="font-semibold">${(advStats.ts_percent * 100).toFixed(1)}%</span></span>
+                            <span>Player Impact Est. (PIE): <span class="font-semibold">${(advStats.pie * 100).toFixed(1)}%</span></span>
+                        </div>
+                        <p class="text-xs text-gray-500 mt-2">
+                            *Game Score is a measure of a player's single-game productivity. A score of 10 is considered average.
+                        </p>
+                    </div>
+                </div>
+                ` : `<p class="text-center text-gray-500 mt-8">Add a game to see your stats!</p>`}
+
+                <!-- Stats Table -->
+                <div class="scrollable-table bg-gray-50 p-6 rounded-xl shadow-md dark:bg-gray-800">
+                    <h3 class="text-xl font-bold mb-4 text-gray-700 dark:text-gray-300">Game Log</h3>
+                    <table class="w-full text-left table-auto">
+                        <thead class="bg-gray-200 dark:bg-gray-700">
+                            <tr>
+                                <th class="p-2 whitespace-nowrap">Date</th>
+                                <th class="p-2 whitespace-nowrap">MIN</th>
+                                <th class="p-2 whitespace-nowrap">PTS</th>
+                                <th class="p-2 whitespace-nowrap">FG</th>
+                                <th class="p-2 whitespace-nowrap">3FG</th>
+                                <th class="p-2 whitespace-nowrap">FT</th>
+                                <th class="p-2 whitespace-nowrap">REB</th>
+                                <th class="p-2 whitespace-nowrap">AST</th>
+                                <th class="p-2 whitespace-nowrap">STL</th>
+                                <th class="p-2 whitespace-nowrap">BLK</th>
+                                <th class="p-2 whitespace-nowrap">TOV</th>
+                                <th class="p-2 whitespace-nowrap">PF</th>
+                                <th class="p-2 whitespace-nowrap">GMSC</th>
+                                <th class="p-2"></th>
+                            </tr>
+                        </thead>
+                        <tbody id="games-table-body">
+                            <!-- Game rows will be inserted here -->
+                        </tbody>
+                    </table>
+                </div>
+            `;
+            
+            // Populate the table with games
+            if (hasGames) {
+                const tableBody = contentContainer.querySelector('#games-table-body');
+                player.games.forEach((game, index) => {
+                    const row = document.createElement('tr');
+                    row.className = `border-b border-gray-200 hover:bg-gray-100 transition-colors dark:border-gray-700 dark:hover:bg-gray-700`;
+                    row.innerHTML = `
+                        <td class="p-2">${game.date}</td>
+                        <td class="p-2">${game.minutes}</td>
+                        <td class="p-2">${game.pts}</td>
+                        <td class="p-2">${game.fgm}/${game.fga}</td>
+                        <td class="p-2">${game.fg3m}/${game.fg3a}</td>
+                        <td class="p-2">${game.ftm}/${game.fta}</td>
+                        <td class="p-2">${game.orb}/${game.drb}</td>
+                        <td class="p-2">${game.ast}</td>
+                        <td class="p-2">${game.stls}</td>
+                        <td class="p-2">${game.blocks}</td>
+                        <td class="p-2">${game.tov}</td>
+                        <td class="p-2">${game.pf}</td>
+                        <td class="p-2 font-semibold">${game.gmsc.toFixed(2)}</td>
+                        <td class="p-2">
+                            <button onclick="deleteGame(${index})" class="text-red-500 hover:text-red-700 transition-colors">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                                  <path fill-rule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm4 0a1 1 0 112 0v6a1 1 0 11-2 0V8z" clip-rule="evenodd" />
+                                </svg>
+                            </button>
+                        </td>
+                    `;
+                    tableBody.appendChild(row);
+                });
+            }
+
+            // Add event listener for the form
+            const form = contentContainer.querySelector('#stats-form');
+            if (form) {
+                form.onsubmit = (e) => {
+                    e.preventDefault();
+                    addGame();
+                };
+            }
+        }
+
+        /**
+         * Adds a new game to the current player's stats.
+         */
+        function addGame() {
+            const form = document.getElementById('stats-form');
+
+            // Helper to parse "made/attempted" strings
+            const parseStatString = (statString) => {
+                const parts = statString.split('/').map(p => parseInt(p.trim()));
+                if (parts.length !== 2 || isNaN(parts[0]) || isNaN(parts[1])) {
+                    showModal('Invalid format. Please use "made/attempted" format (e.g., "5/10") for shooting stats and "off/def" for rebounds.');
+                    return null;
+                }
+                return { made: parts[0], attempted: parts[1] };
+            };
+            
+            // Parse combined inputs
+            const fgStats = parseStatString(form.querySelector('#fg').value);
+            const fg3Stats = parseStatString(form.querySelector('#fg3').value);
+            const ftStats = parseStatString(form.querySelector('#ft').value);
+            const reboundStats = parseStatString(form.querySelector('#rebounds').value);
+            
+            if (!fgStats || !fg3Stats || !ftStats || !reboundStats) {
+                return; // Exit if parsing fails
+            }
+
+            const newGame = {
+                date: form.querySelector('#date').value,
+                minutes: parseInt(form.querySelector('#minutes').value),
+                pts: parseInt(form.querySelector('#pts').value),
+                ast: parseInt(form.querySelector('#ast').value),
+                stls: parseInt(form.querySelector('#stls').value),
+                blocks: parseInt(form.querySelector('#blocks').value),
+                tov: parseInt(form.querySelector('#tov').value),
+                pf: parseInt(form.querySelector('#pf').value),
+                fgm: fgStats.made,
+                fga: fgStats.attempted,
+                fg3m: fg3Stats.made,
+                fg3a: fg3Stats.attempted,
+                ftm: ftStats.made,
+                fta: ftStats.attempted,
+                orb: reboundStats.made, // Assuming first number is offensive
+                drb: reboundStats.attempted, // Assuming second number is defensive
+            };
+            
+            // Calculate advanced stats
+            newGame.gmsc = calculateGameScore(newGame);
+            newGame.ts_percent = calculateTSPercent(newGame);
+            newGame.pie = calculatePIE(newGame);
+            
+            // Add the new game and re-calculate
+            data[currentTab].games.push(newGame);
+            calculateStats();
+            saveData();
+            renderUI();
+            form.reset(); // Clear form after submission
+            // Set default values after reset
+            form.querySelector('#date').value = new Date().toISOString().slice(0, 10);
+            form.querySelector('#minutes').value = 0;
+            form.querySelector('#pts').value = 0;
+            form.querySelector('#fg').value = '0/0';
+            form.querySelector('#fg3').value = '0/0';
+            form.querySelector('#ft').value = '0/0';
+            form.querySelector('#rebounds').value = '0/0';
+            form.querySelector('#ast').value = 0;
+            form.querySelector('#stls').value = 0;
+            form.querySelector('#blocks').value = 0;
+            form.querySelector('#tov').value = 0;
+            form.querySelector('#pf').value = 0;
+        }
+
+        /**
+         * Deletes a game at a specific index.
+         * @param {number} index - The index of the game to delete.
+         */
+        function deleteGame(index) {
+            const playerGames = data[currentTab].games;
+            if (playerGames.length === 1) {
+                 // Use a custom modal instead of alert/confirm
+                 showModal("This is the last game. Deleting it will clear all stats. Are you sure?", () => {
+                    playerGames.splice(index, 1);
+                    calculateStats();
+                    saveData();
+                    renderUI();
+                 }, true);
+            } else {
+                playerGames.splice(index, 1);
+                calculateStats();
+                saveData();
+                renderUI();
+            }
+        }
+        
+        /**
+         * Calculates all averages and advanced stats for the current player.
+         */
+        function calculateStats() {
+            const player = data[currentTab];
+            if (!player || player.games.length === 0) {
+                player.averages = {};
+                player.advanced = {};
+                return;
+            }
+
+            const totalGames = player.games.length;
+            const totals = player.games.reduce((acc, game) => {
+                for (const key in game) {
+                    if (typeof game[key] === 'number') {
+                        acc[key] = (acc[key] || 0) + game[key];
+                    }
+                }
+                return acc;
+            }, {});
+
+            player.averages = {
+                pts: totals.pts / totalGames,
+                orb: totals.orb / totalGames,
+                drb: totals.drb / totalGames,
+                ast: totals.ast / totalGames,
+                stls: totals.stls / totalGames,
+                blocks: totals.blocks / totalGames,
+                minutes: totals.minutes / totalGames,
+                fgm: totals.fgm,
+                fga: totals.fga,
+                fg3m: totals.fg3m,
+                fg3a: totals.fg3a,
+                ftm: totals.ftm,
+                fta: totals.fta,
+                fgp: totals.fga > 0 ? totals.fgm / totals.fga : 0,
+                fg3p: totals.fg3a > 0 ? totals.fg3m / totals.fg3a : 0,
+                ftp: totals.fta > 0 ? totals.ftm / totals.fta : 0,
+            };
+
+            const totalGameScore = player.games.reduce((sum, game) => sum + game.gmsc, 0);
+            const totalTSPercent = player.games.reduce((sum, game) => sum + game.ts_percent, 0);
+            const totalPIE = player.games.reduce((sum, game) => sum + game.pie, 0);
+
+            player.advanced = {
+                gmsc: totalGameScore / totalGames,
+                ts_percent: totalTSPercent / totalGames,
+                pie: totalPIE / totalGames,
+            };
+        }
+
+        /**
+         * Calculates the Game Score (GMSC) for a single game.
+         * Formula: PTS + 0.4*FG - 0.7*FGA - 0.4*(FTA-FT) + 0.7*ORB + 0.3*DRB + STL + 0.7*AST + 0.7*BLK - 0.4*PF - TOV
+         * @param {object} game - The game object with stats.
+         * @returns {number} The calculated Game Score.
+         */
+        function calculateGameScore(game) {
+            return (
+                game.pts +
+                0.4 * game.fgm -
+                0.7 * game.fga -
+                0.4 * (game.fta - game.ftm) +
+                0.7 * game.orb +
+                0.3 * game.drb +
+                game.stls +
+                0.7 * game.ast +
+                0.7 * game.blocks -
+                0.4 * game.pf -
+                game.tov
+            );
+        }
+
+        /**
+         * Calculates True Shooting Percentage (TS%) for a single game.
+         * Formula: PTS / (2 * (FGA + 0.44 * FTA))
+         * @param {object} game - The game object with stats.
+         * @returns {number} The calculated TS%.
+         */
+        function calculateTSPercent(game) {
+            const denominator = 2 * (game.fga + 0.44 * game.fta);
+            return denominator > 0 ? game.pts / denominator : 0;
+        }
+
+        /**
+         * Calculates Player Impact Estimate (PIE) for a single game.
+         * This is a simplified version of the NBA's PIE calculation.
+         * @param {object} game - The game object with stats.
+         * @returns {number} The calculated PIE.
+         */
+        function calculatePIE(game) {
+            const playerStats = (game.pts + game.fgm + game.ftm - game.fga - game.fta + game.drb + game.orb + game.ast + game.stls + game.blocks - game.tov - game.pf);
+            // This needs to be compared against team totals, which we don't have.
+            // For now, we'll return a score based on a fixed denominator for a simple metric.
+            const totalGameScore = (200 + 40 + 30 + 10 + 5 + 5 + 35 + 20 + 20 + 5 + 5);
+            return playerStats / totalGameScore;
+        }
+
+        /**
+         * Saves the current data object to localStorage.
+         */
+        function saveData() {
+            localStorage.setItem('basketball_stats', JSON.stringify(data));
+        }
+
+        /**
+         * Adds a new player tab to the data and UI.
+         */
+        document.getElementById('add-tab-btn').addEventListener('click', () => {
+            const newPlayerName = prompt('Enter a name for the new player:');
+            if (newPlayerName && newPlayerName.trim() !== '') {
+                // Check if the player name already exists
+                if (data[newPlayerName]) {
+                    showModal('A player with this name already exists.');
+                } else {
+                    data[newPlayerName] = { games: [], averages: {}, advanced: {} };
+                    currentTab = newPlayerName;
+                    saveData();
+                    renderUI();
+                }
+            } else if (newPlayerName === '') {
+                showModal('Player name cannot be empty.');
+            }
+        });
+
+        /**
+         * Exports the data as a JSON file.
+         */
+        document.getElementById('export-btn').addEventListener('click', () => {
+            const dataStr = JSON.stringify(data, null, 2);
+            const blob = new Blob([dataStr], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const link = document.getElementById('download-link');
+            
+            link.href = url;
+            link.download = 'basketball_stats.json';
+            link.click();
+            
+            URL.revokeObjectURL(url);
+        });
+
+        /**
+         * Imports data from a JSON file.
+         */
+        document.getElementById('import-btn').addEventListener('click', () => {
+            document.getElementById('import-file').click();
+        });
+
+        document.getElementById('import-file').addEventListener('change', (event) => {
+            const file = event.target.files[0];
+            if (!file) return;
+            
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                try {
+                    const importedData = JSON.parse(e.target.result);
+                    // Simple validation to ensure it's a valid data structure
+                    if (typeof importedData === 'object' && !Array.isArray(importedData)) {
+                        data = importedData;
+                        // Recalculate all stats to ensure consistency
+                        for (const player in data) {
+                            if (data[player].games) {
+                                calculateStatsForPlayer(data[player]);
+                            }
+                        }
+                        currentTab = Object.keys(data)[0] || null;
+                        saveData();
+                        renderUI();
+                        showModal('Stats imported successfully!');
+                    } else {
+                        showModal('Invalid JSON format. Please select a valid stats file.');
+                    }
+                } catch (err) {
+                    console.error(err);
+                    showModal('Failed to parse JSON file. Please check the file content.');
+                }
+            };
+            reader.readAsText(file);
+        });
+
+        /**
+         * A helper function to recalculate stats for a specific player object.
+         * Used during the import process.
+         */
+        function calculateStatsForPlayer(player) {
+            if (!player || !player.games || player.games.length === 0) {
+                player.averages = {};
+                player.advanced = {};
+                return;
+            }
+
+            const totalGames = player.games.length;
+            const totals = player.games.reduce((acc, game) => {
+                for (const key in game) {
+                    if (typeof game[key] === 'number') {
+                        acc[key] = (acc[key] || 0) + game[key];
+                    }
+                }
+                return acc;
+            }, {});
+
+            player.averages = {
+                pts: totals.pts / totalGames,
+                orb: totals.orb / totalGames,
+                drb: totals.drb / totalGames,
+                ast: totals.ast / totalGames,
+                stls: totals.stls / totalGames,
+                blocks: totals.blocks / totalGames,
+                minutes: totals.minutes / totalGames,
+                fgm: totals.fgm,
+                fga: totals.fga,
+                fg3m: totals.fg3m,
+                fg3a: totals.fg3a,
+                ftm: totals.ftm,
+                fta: totals.fta,
+                fgp: totals.fga > 0 ? totals.fgm / totals.fga : 0,
+                fg3p: totals.fg3a > 0 ? totals.fg3m / totals.fg3a : 0,
+                ftp: totals.fta > 0 ? totals.ftm / totals.fta : 0,
+            };
+
+            const totalGameScore = player.games.reduce((sum, game) => sum + calculateGameScore(game), 0);
+            const totalTSPercent = player.games.reduce((sum, game) => sum + calculateTSPercent(game), 0);
+            const totalPIE = player.games.reduce((sum, game) => sum + calculatePIE(game), 0);
+            player.advanced = {
+                gmsc: totalGameScore / totalGames,
+                ts_percent: totalTSPercent / totalGames,
+                pie: totalPIE / totalGames,
+            };
+        }
+
+        /**
+         * Custom modal function to replace alert() and confirm()
+         * @param {string} message - The message to display.
+         * @param {function} onConfirm - The function to call on OK.
+         * @param {boolean} showCancel - Whether to show the Cancel button.
+         */
+        function showModal(message, onConfirm = null, showCancel = false) {
+            const modal = document.getElementById('custom-modal');
+            const messageElement = document.getElementById('modal-message');
+            const okBtn = document.getElementById('modal-ok-btn');
+            const cancelBtn = document.getElementById('modal-cancel-btn');
+
+            messageElement.textContent = message;
+
+            okBtn.onclick = () => {
+                if (onConfirm) onConfirm();
+                modal.classList.add('hidden');
+            };
+
+            if (showCancel) {
+                cancelBtn.classList.remove('hidden');
+                cancelBtn.onclick = () => {
+                    modal.classList.add('hidden');
+                };
+            } else {
+                cancelBtn.classList.add('hidden');
+            }
+
+            modal.classList.remove('hidden');
+        }
+
+        // Event listener for the dark mode toggle button
+        document.getElementById('dark-mode-toggle').addEventListener('click', toggleDarkMode);
+
+        // Initial render on page load
+        if (Object.keys(data).length === 0) {
+            // Start with a default player if no data exists
+            data['Player 1'] = { games: [], averages: {}, advanced: {} };
+            currentTab = 'Player 1';
+        }
+        
+        applyTheme();
+        renderUI();
+    </script>
+</body>
+</html>
